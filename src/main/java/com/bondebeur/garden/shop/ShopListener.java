@@ -8,14 +8,22 @@ import org.bukkit.entity.Player;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Sound;
+import com.bondebeur.garden.economy.EconomyManager;
+import com.bondebeur.garden.economy.PlayerInventory;
+import com.bondebeur.garden.economy.TransactionHandler;
 
 public class ShopListener implements Listener {
     private ShopManager shopManager;
     private ShopGUI shopGUI;
+    private EconomyManager economyManager;
+    private TransactionHandler transactionHandler;
+    private java.util.Map<Player, PlayerInventory> playerInventories = new java.util.HashMap<>();
 
-    public ShopListener(ShopManager shopManager, ShopGUI shopGUI) {
+    public ShopListener(ShopManager shopManager, ShopGUI shopGUI, EconomyManager economyManager) {
         this.shopManager = shopManager;
         this.shopGUI = shopGUI;
+        this.economyManager = economyManager;
+        this.transactionHandler = new TransactionHandler(economyManager);
     }
 
     @EventHandler
@@ -39,16 +47,19 @@ public class ShopListener implements Listener {
             return;
         }
 
-        // TODO: Handle purchase - check player's money, validate stock exists, etc.
-        // For now, just show feedback
-        
-        // Play purchase sound
-        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.2f);
+        // Get or create player inventory
+        PlayerInventory inventory = playerInventories.computeIfAbsent(player, k -> new PlayerInventory(player, economyManager));
 
-        // Send purchase message
-        player.sendMessage(Component.text("💰 You purchased ").color(TextColor.color(0xFFD700))
-            .append(Component.text(seed.getName()).color(TextColor.color(0x00FF00)))
-            .append(Component.text(" for $" + seed.getPrice()).color(TextColor.color(0xFFD700))));
+        // Determine quantity based on click type
+        int quantity = 1;
+        if (event.isShiftClick()) {
+            quantity = 64; // Shift-click = bulk purchase
+        } else if (event.isRightClick()) {
+            quantity = 10; // Right-click = 10x
+        }
+
+        // Process purchase
+        transactionHandler.buySeed(player, seed, inventory, quantity);
     }
 
     @EventHandler
